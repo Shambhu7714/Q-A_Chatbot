@@ -1,64 +1,13 @@
-<!-- <!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8"/>
-    <title>PDF Q&A (Gemini + SQLite RAG)</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
-    <script src="/static/app.js" defer></script>
-    <style>
-      body { max-width: 900px; margin: 24px auto; }
-      .chat { border: 1px solid #ddd; padding: 12px; border-radius: 8px; min-height: 120px; }
-      .user { color: #0b66ff; }
-      .ai { color: #111; }
-      .meta { font-size: 0.85em; color: #666; }
-    </style>
-  </head>
-  <body>
-    <h1>PDF Q&A — Gemini RAG (local)</h1>
-
-    <section>
-      <h3>1) Upload PDF (will be indexed)</h3>
-      <form id="uploadForm">
-        <input type="file" id="pdfFile" name="pdf" accept="application/pdf"/>
-        <button type="submit">Upload & Index</button>
-      </form>
-      <div id="uploadResult" class="meta"></div>
-    </section>
-
-    <section>
-      <h3>2) Ask a question</h3>
-      <div>
-        <label>PDF ID: <input id="pdfIdInput" placeholder="paste pdf_id from upload result"></label>
-      </div>
-      <form id="askForm">
-        <input id="questionInput" name="question" placeholder="Ask a question about the uploaded PDF" style="width: 70%">
-        <button type="submit">Ask</button>
-      </form>
-      <div class="chat" id="chatBox"></div>
-    </section>
-
-    <section>
-      <h3>3) Summarize document</h3>
-      <form id="summForm">
-        <input id="pdfIdForSumm" placeholder="pdf id">
-        <button type="submit">Summarize</button>
-      </form>
-      <pre id="summResult"></pre>
-    </section>
-
-    <hr/>
-    <p class="meta">Note: The pdf_id returned after upload must be used for ask/summarize requests. Keep the page open to keep session stored locally on server.</p>
-  </body>
-</html> -->
-
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>AI PDF Assistant</title>
+
+    <!-- Markdown Renderer -->
+    <script src="https://cdn.jsdelivr.net/npm/showdown@2.1.0/dist/showdown.min.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -159,7 +108,6 @@
             flex: 1;
             overflow-y: auto;
             padding: 20px 12px;
-            /* make chat area scroll smoothly */
             scroll-behavior: smooth;
         }
 
@@ -175,10 +123,8 @@
         .message-row {
             display: flex;
             padding: 8px 20px;
-            align-items: flex-start;
         }
 
-        /* ensure rows don't span full width so bubble alignment works */
         .message-content-wrapper {
             width: 100%;
             display: flex;
@@ -186,7 +132,6 @@
             align-items: flex-start;
         }
 
-        /* put avatar and bubble next to each other */
         .message-avatar {
             width: 36px;
             height: 36px;
@@ -206,21 +151,21 @@
             background: #10a37f;
         }
 
-        /* Bubble */
         .message-bubble {
-            max-width: 70%;
-            padding: 12px 14px;
-            border-radius: 12px;
+            max-width: 75%;
+            padding: 14px 18px;
+            border-radius: 14px;
             background: #40414f;
             color: #ececf1;
-            line-height: 1.6;
+            line-height: 1.65;
             font-size: 15px;
             word-wrap: break-word;
-            white-space: pre-wrap;
+            white-space: normal;
+            overflow-wrap: anywhere;
             box-shadow: 0 2px 8px rgba(0,0,0,0.25);
         }
 
-        /* assistant: left */
+        /* Assistant bubble left */
         .message-row.assistant {
             justify-content: flex-start;
         }
@@ -230,13 +175,9 @@
         .message-row.assistant .message-bubble {
             background: #444654;
             margin-right: auto;
-            border-bottom-left-radius: 6px;
-            border-bottom-right-radius: 12px;
-            border-top-left-radius: 12px;
-            border-top-right-radius: 12px;
         }
 
-        /* user: right */
+        /* User bubble right */
         .message-row.user {
             justify-content: flex-end;
         }
@@ -246,51 +187,7 @@
         .message-row.user .message-bubble {
             background: linear-gradient(180deg, #6b4df0, #5436da);
             margin-left: auto;
-            border-bottom-right-radius: 6px;
-            border-bottom-left-radius: 12px;
-            border-top-right-radius: 12px;
-            border-top-left-radius: 12px;
             color: white;
-        }
-
-        .message-text {
-            flex: 1;
-            line-height: 1.6;
-            font-size: 15px;
-            color: inherit;
-        }
-
-        .typing-indicator {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-
-        .typing-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #8e8ea0;
-            animation: typing 1.4s infinite;
-        }
-
-        .typing-dot:nth-child(2) {
-            animation-delay: 0.2s;
-        }
-
-        .typing-dot:nth-child(3) {
-            animation-delay: 0.4s;
-        }
-
-        @keyframes typing {
-            0%, 60%, 100% {
-                opacity: 0.3;
-                transform: translateY(0);
-            }
-            30% {
-                opacity: 1;
-                transform: translateY(-3px);
-            }
         }
 
         .empty-state {
@@ -299,7 +196,6 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            text-align: center;
             padding: 40px;
         }
 
@@ -309,94 +205,86 @@
             opacity: 0.5;
         }
 
-        .empty-title {
-            font-size: 24px;
-            font-weight: 600;
-            margin-bottom: 12px;
-        }
-
-        .empty-text {
-            font-size: 16px;
-            color: #8e8ea0;
-        }
-
-        /* Input Area */
+        /* INPUT AREA (CHATGPT STYLE) */
         .input-area {
-            padding: 16px;
+            padding: 18px;
             background: #343541;
             border-top: 1px solid #4d4d4f;
         }
 
         .input-container {
-            max-width: 920px;
+            max-width: 900px;
             margin: 0 auto;
         }
 
         .input-wrapper {
             display: flex;
-            align-items: flex-end;
-            gap: 10px;
+            align-items: center;
+            gap: 14px;
             background: #40414f;
             border-radius: 12px;
-            padding: 12px 14px;
+            padding: 14px 18px;
             border: 1px solid #565869;
         }
 
-        .input-wrapper:focus-within {
-            border-color: #8e8ea0;
+        /* Upload only icon, NO "Choose File" text */
+        #fileInput {
+            display: none !important;
+            width: 0;
+            height: 0;
+            opacity: 0;
+            pointer-events: none;
+            position: absolute;
         }
 
         .upload-btn {
-            width: 36px;
-            height: 36px;
-            border-radius: 8px;
+            width: 38px;
+            height: 38px;
             background: transparent;
             border: none;
             color: #ececf1;
             cursor: pointer;
             display: flex;
-            align-items: center;
             justify-content: center;
-            font-size: 20px;
-            transition: all 0.2s;
-            flex-shrink: 0;
+            align-items: center;
+            font-size: 22px;
+            border-radius: 8px;
         }
 
         .upload-btn:hover {
             background: #565869;
         }
 
+        /* Text area */
         #messageInput {
             flex: 1;
             border: none;
             background: transparent;
             color: #ececf1;
-            font-size: 15px;
+            font-size: 16px;
             outline: none;
             resize: none;
-            max-height: 200px;
+            padding: 4px 0;
             line-height: 1.5;
-            padding: 6px 4px;
         }
 
         #messageInput::placeholder {
             color: #8e8ea0;
         }
 
+        /* Send button */
         #sendBtn {
             width: 42px;
-            height: 36px;
+            height: 38px;
             border-radius: 8px;
             background: #10a37f;
             border: none;
             color: white;
             cursor: pointer;
+            font-size: 18px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
-            transition: all 0.2s;
-            flex-shrink: 0;
         }
 
         #sendBtn:hover:not(:disabled) {
@@ -404,13 +292,8 @@
         }
 
         #sendBtn:disabled {
-            background: #565869;
-            cursor: not-allowed;
             opacity: 0.6;
-        }
-
-        #fileInput {
-            display: none;
+            cursor: not-allowed;
         }
 
         /* Upload Progress Modal */
@@ -424,8 +307,8 @@
             padding: 30px;
             min-width: 360px;
             box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-            z-index: 1000;
             display: none;
+            z-index: 1000;
         }
 
         .upload-progress-modal.show {
@@ -434,23 +317,14 @@
 
         .modal-backdrop {
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
+            inset: 0;
             background: rgba(0,0,0,0.7);
-            z-index: 999;
             display: none;
+            z-index: 999;
         }
 
         .modal-backdrop.show {
             display: block;
-        }
-
-        .upload-progress-title {
-            font-size: 18px;
-            margin-bottom: 20px;
-            text-align: center;
         }
 
         .progress-bar {
@@ -467,45 +341,13 @@
             width: 0%;
             transition: width 0.3s;
         }
-
-        .progress-text {
-            font-size: 14px;
-            color: #8e8ea0;
-            text-align: center;
-        }
-
-        /* Scrollbar */
-        .chat-area::-webkit-scrollbar,
-        .chat-history::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .chat-area::-webkit-scrollbar-track,
-        .chat-history::-webkit-scrollbar-track {
-            background: #2a2b32;
-        }
-
-        .chat-area::-webkit-scrollbar-thumb,
-        .chat-history::-webkit-scrollbar-thumb {
-            background: #565869;
-            border-radius: 4px;
-        }
-
-        @media (max-width: 1024px) {
-            .input-container { padding: 0 12px; }
-            .message-bubble { max-width: 80%; }
-        }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                display: none;
-            }
-            .chat-area { padding: 14px; }
-        }
     </style>
 </head>
+
 <body>
     <div class="app-container">
+        
+        <!-- ================= SIDEBAR ================= -->
         <div class="sidebar" aria-hidden="false">
             <div class="sidebar-header">
                 <button class="new-chat-btn" onclick="newChat()">
@@ -513,329 +355,344 @@
                     <span>New chat</span>
                 </button>
             </div>
+
             <div class="chat-history" id="chatHistory" role="list"></div>
+
             <div class="sidebar-footer">🤖 AI PDF Assistant</div>
         </div>
 
+        <!-- ================= MAIN CHAT CONTENT ================= -->
         <div class="main-content" role="main">
+
+            <!-- CHAT AREA -->
             <div class="chat-area" id="chatArea" aria-live="polite">
                 <div class="chat-messages" id="chatMessages">
+                    
+                    <!-- EMPTY STATE -->
                     <div class="empty-state" id="emptyState">
                         <div class="empty-icon">📄</div>
                         <div class="empty-title">AI PDF Assistant</div>
                         <div class="empty-text">Upload a PDF to start</div>
                     </div>
+
                 </div>
             </div>
 
+            <!-- INPUT BAR -->
             <div class="input-area">
                 <div class="input-container">
                     <div class="input-wrapper" role="form" aria-label="Message input">
-                        <button class="upload-btn" id="uploadBtn" title="Upload PDF">📎</button>
-                        <input type="file" id="fileInput" accept=".pdf" aria-label="Upload PDF file">
-                        <textarea id="messageInput" placeholder="Message..." rows="1" aria-label="Message"></textarea>
+
+                        <!-- Upload icon only; actual input is hidden -->
+                        <button class="upload-btn" id="uploadBtn" title="Upload PDF" aria-label="Upload PDF">📎</button>
+                        <input type="file" id="fileInput" accept=".pdf" aria-hidden="true" />
+
+                        <!-- Message textarea -->
+                        <textarea 
+                            id="messageInput" 
+                            placeholder="Message..." 
+                            rows="1" 
+                            aria-label="Message"></textarea>
+
+                        <!-- Send button -->
                         <button id="sendBtn" title="Send message" aria-label="Send">⬆️</button>
                     </div>
                 </div>
             </div>
+
         </div>
 
+        <!-- ================= UPLOAD MODAL ================= -->
         <div class="modal-backdrop" id="modalBackdrop"></div>
-        <div class="upload-progress-modal" id="uploadProgressModal" role="dialog" aria-modal="true" aria-hidden="true">
+
+        <div class="upload-progress-modal" id="uploadProgressModal" role="dialog" aria-hidden="true">
             <div class="upload-progress-title">📄 Uploading PDF...</div>
+
             <div class="progress-bar" aria-hidden="true">
                 <div class="progress-fill" id="progressFill"></div>
             </div>
+
             <div class="progress-text" id="progressText">Uploading...</div>
         </div>
+
     </div>
+<script>
+    let pdfId = null;
+    let sessionId = null;
 
-    <script>
-        let pdfId = null;
-        let sessionId = null;
+    /* ===========================
+       MARKDOWN RENDERER
+    ============================ */
+    const converter = new showdown.Converter({
+        noHeaderId: true,
+        simplifiedAutoLink: true,
+        strikethrough: true,
+        tables: true,
+        emoji: true,
+        ghCodeBlocks: true,
+        tasklists: true,
+        openLinksInNewWindow: true
+    });
 
-        const uploadBtn = document.getElementById('uploadBtn');
-        const fileInput = document.getElementById('fileInput');
-        const uploadProgressModal = document.getElementById('uploadProgressModal');
-        const modalBackdrop = document.getElementById('modalBackdrop');
-        const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
-        const chatMessages = document.getElementById('chatMessages');
-        const messageInput = document.getElementById('messageInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const chatHistory = document.getElementById('chatHistory');
-        const chatArea = document.getElementById('chatArea');
-        const emptyState = document.getElementById('emptyState');
+    /* DOM ELEMENTS */
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('fileInput');
+    const uploadProgressModal = document.getElementById('uploadProgressModal');
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const progressFill = document.getElementById('progressFill');
+    const progressText = document.getElementById('progressText');
+    const chatMessages = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const chatHistory = document.getElementById('chatHistory');
+    const chatArea = document.getElementById('chatArea');
+    const emptyState = document.getElementById('emptyState');
 
-        uploadBtn.addEventListener('click', () => fileInput.click());
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) handleFileUpload(e.target.files[0]);
+    });
 
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFileUpload(e.target.files[0]);
-            }
-        });
+    function sleep(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 
-        function sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
-        }
+    /* ===========================
+       FILE UPLOAD HANDLER
+    ============================ */
+    async function handleFileUpload(file) {
 
-        async function handleFileUpload(file) {
-            // show progress modal
-            uploadProgressModal.classList.add('show');
-            uploadProgressModal.setAttribute('aria-hidden', 'false');
-            modalBackdrop.classList.add('show');
-            progressFill.style.width = '10%';
-            progressText.textContent = 'Uploading PDF...';
+        uploadProgressModal.classList.add('show');
+        modalBackdrop.classList.add('show');
+        progressFill.style.width = "10%";
+        progressText.textContent = "Uploading PDF...";
 
-            // build form data
-            const formData = new FormData();
-            formData.append('file', file);
+        const formData = new FormData();
+        formData.append("file", file);
 
-            try {
-                // upload file - backend endpoint expected at /upload
-                const response = await fetch('/upload', { method: 'POST', body: formData });
-
-                // some fake progress steps for UX
-                progressFill.style.width = '50%';
-                progressText.textContent = 'Extracting text...';
-                await sleep(500);
-
-                if (!response.ok) {
-                    const errText = await response.text().catch(() => 'Upload failed');
-                    throw new Error(errText || 'Upload failed');
-                }
-
-                const data = await response.json();
-
-                if (data.status === 'ok' || data.pdf_id) {
-                    progressFill.style.width = '90%';
-                    progressText.textContent = 'Creating embeddings...';
-                    await sleep(600);
-
-                    // success
-                    progressFill.style.width = '100%';
-                    progressText.textContent = 'Complete!';
-                    await sleep(400);
-
-                    pdfId = data.pdf_id || data.pdfId || data.id || null;
-
-                    // hide modal
-                    uploadProgressModal.classList.remove('show');
-                    uploadProgressModal.setAttribute('aria-hidden', 'true');
-                    modalBackdrop.classList.remove('show');
-
-                    // clear messages and add assistant confirmation
-                    chatMessages.innerHTML = '';
-                    addMessage('assistant', `Great! I've processed "${file.name}". Ask me anything! 📚`);
-                    addToHistory(file.name);
-                    messageInput.focus();
-                } else {
-                    uploadProgressModal.classList.remove('show');
-                    modalBackdrop.classList.remove('show');
-                    throw new Error(data.error || 'Upload failed');
-                }
-            } catch (error) {
-                uploadProgressModal.classList.remove('show');
-                modalBackdrop.classList.remove('show');
-                alert('Error: ' + (error.message || error));
-            } finally {
-                fileInput.value = '';
-            }
-        }
-
-        sendBtn.addEventListener('click', sendMessage);
-        messageInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        // ensure send button enabled only when input has text
-        function updateSendBtnState() {
-            sendBtn.disabled = messageInput.value.trim().length === 0;
-        }
-        messageInput.addEventListener('input', updateSendBtnState);
-        updateSendBtnState();
-
-        async function sendMessage() {
-            const question = messageInput.value.trim();
-            if (!question) return;
-            if (!pdfId) {
-                alert('Please upload a PDF first!');
-                return;
-            }
-
-            // remove empty state if present
-            if (emptyState) emptyState.remove();
-
-            addMessage('user', question);
-            messageInput.value = '';
-            updateSendBtnState();
-            messageInput.style.height = 'auto';
-            showTyping();
-
-            const formData = new FormData();
-            formData.append('pdf_id', pdfId);
-            formData.append('question', question);
-            if (sessionId) formData.append('session_id', sessionId);
-
-            try {
-                const response = await fetch('/ask', { method: 'POST', body: formData });
-                if (!response.ok) {
-                    const t = await response.text().catch(() => '');
-                    throw new Error(t || 'Server error');
-                }
-                const data = await response.json();
-                hideTyping();
-
-                if (data.answer) {
-                    sessionId = data.session_id || sessionId;
-                    addMessage('assistant', data.answer);
-                } else if (data.text) {
-                    sessionId = data.session_id || sessionId;
-                    addMessage('assistant', data.text);
-                } else {
-                    addMessage('assistant', 'Sorry, couldn\'t generate a response.');
-                }
-            } catch (error) {
-                hideTyping();
-                addMessage('assistant', 'Error: ' + (error.message || error));
-            }
-        }
-
-        // adds a message (role: 'user' | 'assistant') and scrolls properly
-        function addMessage(role, text) {
-            // create row
-            const messageRow = document.createElement('div');
-            messageRow.className = `message-row ${role}`;
-
-            // wrapper for avatar + bubble
-            const wrapper = document.createElement('div');
-            wrapper.className = 'message-content-wrapper';
-
-            // avatar
-            const avatar = document.createElement('div');
-            avatar.className = 'message-avatar';
-            avatar.setAttribute('aria-hidden', 'true');
-            avatar.textContent = role === 'user' ? '👤' : '🤖';
-
-            // bubble and text
-            const bubble = document.createElement('div');
-            bubble.className = 'message-bubble';
-            bubble.setAttribute('role', 'article');
-
-            const messageText = document.createElement('div');
-            messageText.className = 'message-text';
-            // allow multiline and preserve line breaks
-            messageText.textContent = text;
-
-            bubble.appendChild(messageText);
-
-            // append in correct order; wrapper flex-direction handles left/right
-            wrapper.appendChild(avatar);
-            wrapper.appendChild(bubble);
-            messageRow.appendChild(wrapper);
-
-            // insert before typing indicator if present
-            const typingRow = document.getElementById('typingRow');
-            if (typingRow) {
-                chatMessages.insertBefore(messageRow, typingRow);
-            } else {
-                chatMessages.appendChild(messageRow);
-            }
-
-            // scroll chat area to bottom
-            requestAnimationFrame(() => {
-                chatArea.scrollTop = chatArea.scrollHeight;
+        try {
+            const response = await fetch("/upload", {
+                method: "POST",
+                body: formData
             });
+
+            progressFill.style.width = "50%";
+            progressText.textContent = "Extracting text...";
+            await sleep(500);
+
+            const data = await response.json();
+            if (!data || !data.pdf_id) throw new Error("Upload failed.");
+
+            progressFill.style.width = "90%";
+            progressText.textContent = "Creating embeddings...";
+            await sleep(500);
+
+            progressFill.style.width = "100%";
+            progressText.textContent = "Complete!";
+            await sleep(400);
+
+            pdfId = data.pdf_id;
+
+            uploadProgressModal.classList.remove('show');
+            modalBackdrop.classList.remove('show');
+
+            chatMessages.innerHTML = "";
+            addMessage("assistant", `Great! I've processed **${file.name}**.  
+Feel free to ask anything about it! 📄🤖`);
+
+            addToHistory(file.name);
+            messageInput.focus();
+
+        } catch (err) {
+            uploadProgressModal.classList.remove('show');
+            modalBackdrop.classList.remove('show');
+            alert("Error: " + err.message);
         }
 
-        function showTyping() {
-            // remove any existing typingRow to avoid duplicates
+        fileInput.value = "";
+    }
+
+    /* ===========================
+       SEND MESSAGE LOGIC
+    ============================ */
+    sendBtn.addEventListener("click", sendMessage);
+    messageInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    messageInput.addEventListener("input", updateSendState);
+    updateSendState();
+
+    function updateSendState() {
+        sendBtn.disabled = messageInput.value.trim().length === 0;
+    }
+
+    async function sendMessage() {
+        const text = messageInput.value.trim();
+        if (!text) return;
+
+        if (!pdfId) {
+            alert("Please upload a PDF first!");
+            return;
+        }
+
+        if (emptyState) emptyState.remove();
+
+        addMessage("user", text);
+        messageInput.value = "";
+        updateSendState();
+        showTyping();
+
+        const formData = new FormData();
+        formData.append("pdf_id", pdfId);
+        formData.append("question", text);
+        if (sessionId) formData.append("session_id", sessionId);
+
+        try {
+            const response = await fetch("/ask", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await response.json();
             hideTyping();
 
-            const typingRow = document.createElement('div');
-            typingRow.id = 'typingRow';
-            typingRow.className = 'message-row assistant';
+            sessionId = data.session_id || sessionId;
 
-            const wrapper = document.createElement('div');
-            wrapper.className = 'message-content-wrapper';
+            if (data.answer) {
+                addMessage("assistant", data.answer);
+            } else {
+                addMessage("assistant", "Sorry, I couldn’t generate a response.");
+            }
 
-            const avatar = document.createElement('div');
-            avatar.className = 'message-avatar';
-            avatar.textContent = '🤖';
-
-            const typingIndicator = document.createElement('div');
-            typingIndicator.className = 'message-bubble';
-            typingIndicator.setAttribute('aria-hidden', 'true');
-
-            const dots = document.createElement('div');
-            dots.className = 'typing-indicator';
-            dots.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
-
-            typingIndicator.appendChild(dots);
-
-            wrapper.appendChild(avatar);
-            wrapper.appendChild(typingIndicator);
-            typingRow.appendChild(wrapper);
-            chatMessages.appendChild(typingRow);
-
-            requestAnimationFrame(() => {
-                chatArea.scrollTop = chatArea.scrollHeight;
-            });
+        } catch (err) {
+            hideTyping();
+            addMessage("assistant", "Error: " + err.message);
         }
+    }
 
-        function hideTyping() {
-            const typingRow = document.getElementById('typingRow');
-            if (typingRow) typingRow.remove();
-        }
+    /* ===========================
+       ADD MESSAGE TO CHAT
+       (Markdown Enabled)
+    ============================ */
+    function addMessage(role, text) {
+        const messageRow = document.createElement("div");
+        messageRow.className = `message-row ${role}`;
 
-        function addToHistory(fileName) {
-            // deactivate old active items
-            document.querySelectorAll('.history-item').forEach(i => i.classList.remove('active'));
+        const wrapper = document.createElement("div");
+        wrapper.className = "message-content-wrapper";
 
-            const item = document.createElement('div');
-            item.className = 'history-item active';
-            item.textContent = fileName;
-            item.title = fileName;
-            item.addEventListener('click', () => {
-                // on click, set active and (optionally) restore conversation - basic demo
-                document.querySelectorAll('.history-item').forEach(i => i.classList.remove('active'));
-                item.classList.add('active');
-                // we won't restore messages (requires server/session) - for now just focus input
-                messageInput.focus();
-            });
-            chatHistory.insertBefore(item, chatHistory.firstChild);
-        }
+        const avatar = document.createElement("div");
+        avatar.className = "message-avatar";
+        avatar.textContent = role === "user" ? "👤" : "🤖";
 
-        function newChat() {
-            chatMessages.innerHTML = '<div class="empty-state"><div class="empty-icon">📄</div><div class="empty-title">AI PDF Assistant</div><div class="empty-text">Upload a PDF to start</div></div>';
-            pdfId = null;
-            sessionId = null;
-            messageInput.value = '';
-            updateSendBtnState();
-            document.querySelectorAll('.history-item').forEach(i => i.classList.remove('active'));
-        }
+        const bubble = document.createElement("div");
+        bubble.className = "message-bubble";
 
-        // autosize textarea
-        messageInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 200) + 'px';
+        const messageText = document.createElement("div");
+        messageText.className = "message-text";
+
+        // RENDER MARKDOWN HERE 🔥
+        messageText.innerHTML = converter.makeHtml(text);
+
+        bubble.appendChild(messageText);
+        wrapper.appendChild(avatar);
+        wrapper.appendChild(bubble);
+        messageRow.appendChild(wrapper);
+
+        const typing = document.getElementById("typingRow");
+        if (typing) chatMessages.insertBefore(messageRow, typing);
+        else chatMessages.appendChild(messageRow);
+
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    /* ===========================
+       TYPING INDICATOR
+    ============================ */
+    function showTyping() {
+        hideTyping();
+
+        const typingRow = document.createElement("div");
+        typingRow.id = "typingRow";
+        typingRow.className = "message-row assistant";
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "message-content-wrapper";
+
+        const avatar = document.createElement("div");
+        avatar.className = "message-avatar";
+        avatar.textContent = "🤖";
+
+        const bubble = document.createElement("div");
+        bubble.className = "message-bubble";
+        bubble.innerHTML = `
+            <div class="typing-indicator">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+            </div>
+        `;
+
+        wrapper.appendChild(avatar);
+        wrapper.appendChild(bubble);
+        typingRow.appendChild(wrapper);
+        chatMessages.appendChild(typingRow);
+
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function hideTyping() {
+        const t = document.getElementById("typingRow");
+        if (t) t.remove();
+    }
+
+    /* ===========================
+       CHAT HISTORY
+    ============================ */
+    function addToHistory(fileName) {
+        document.querySelectorAll(".history-item").forEach(item => item.classList.remove("active"));
+
+        const item = document.createElement("div");
+        item.className = "history-item active";
+        item.textContent = fileName;
+
+        item.addEventListener("click", () => {
+            document.querySelectorAll(".history-item").forEach(i => i.classList.remove("active"));
+            item.classList.add("active");
+            messageInput.focus();
         });
 
-        // initial accessibility focus
-        window.addEventListener('load', () => {
-            // ensure chat area scrolls to bottom if filled
-            requestAnimationFrame(() => {
-                chatArea.scrollTop = chatArea.scrollHeight;
-            });
-        });
+        chatHistory.insertBefore(item, chatHistory.firstChild);
+    }
 
-        // expose for debugging (optional)
-        window._aiPdfAssistant = {
-            addMessage, showTyping, hideTyping, newChat
-        };
-    </script>
+    /* ===========================
+       NEW CHAT
+    ============================ */
+    function newChat() {
+        chatMessages.innerHTML = `
+            <div class="empty-state" id="emptyState">
+                <div class="empty-icon">📄</div>
+                <div class="empty-title">AI PDF Assistant</div>
+                <div class="empty-text">Upload a PDF to start</div>
+            </div>
+        `;
+        pdfId = null;
+        sessionId = null;
+        messageInput.value = "";
+        updateSendState();
+    }
+
+    /* ===========================
+       AUTO RESIZE TEXTAREA
+    ============================ */
+    messageInput.addEventListener("input", function () {
+        this.style.height = "auto";
+        this.style.height = Math.min(this.scrollHeight, 200) + "px";
+    });
+</script>
 </body>
 </html>

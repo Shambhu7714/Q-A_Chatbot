@@ -113,6 +113,7 @@ This step:
 # ❓ 7. Ask Questions (CLI Test)
 
 ```
+![alt text](image-1.png)
 python query_simple.py
 ```
 
