@@ -165,3 +165,4 @@ def debug_retrieve(pdf_id: str, q: str, top_k: int = 5):
         return {"query": q, "results": docs}
     except Exception as e:
         return {"error": str(e)}
+    
